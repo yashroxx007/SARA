@@ -614,7 +614,7 @@ def think(user_input):
 
 # --- Main Loop ---
 print("Initialization complete, starting...")
-speak("Hey Yash, I'm online. What do we need to do?")
+speak("Hey Boss, I'm online. What do we need to do?")
 proactive.start()
 
 print("Say 'Hey SARA' to activate.")

@@ -98,15 +98,16 @@ Is there an event starting in approximately 10-15 minutes? If yes, reply with ON
 
 def _loop():
     global _running
+    # Sleep to the next minute boundary FIRST — don't fire immediately on boot
+    now = datetime.now()
+    time.sleep(60 - now.second)
     while _running:
         try:
             _check_and_speak()
         except Exception as e:
             print(f"[PROACTIVE] Loop error: {e}")
-        # Sleep until the next minute boundary
         now = datetime.now()
-        seconds_to_next_minute = 60 - now.second
-        time.sleep(seconds_to_next_minute)
+        time.sleep(60 - now.second)
 
 
 def start():
