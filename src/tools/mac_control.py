@@ -27,10 +27,12 @@ def set_brightness(level: int) -> str:
     script = f'tell application "System Events" to set brightness of display 1 to {value}'
     result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
     if result.returncode != 0:
-        # Fallback: use brightness CLI if available
-        fb = subprocess.run(["brightness", str(value)], capture_output=True, text=True)
-        if fb.returncode != 0:
-            return "Couldn't set brightness — System Preferences access may be needed."
+        try:
+            fb = subprocess.run(["brightness", str(value)], capture_output=True, text=True)
+            if fb.returncode != 0:
+                return "Couldn't set brightness. Go to System Settings → Privacy → Accessibility and allow SARA, then try again."
+        except FileNotFoundError:
+            return "Couldn't set brightness. Run 'brew install brightness' to enable this, or grant Accessibility permission in System Settings."
     return f"Brightness set to {level}%."
 
 
