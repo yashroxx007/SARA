@@ -1,6 +1,6 @@
 # Current Status
 
-> Last updated: 9 June 2026 (v0.5.0)
+> Last updated: 9 June 2026 (v0.5.3)
 
 ---
 
@@ -13,7 +13,7 @@
 | VAD | ✅ Working | ~800ms silence cutoff |
 | Claude API | ✅ Working | `claude-sonnet-4-6`, tool use active |
 | Memory | ✅ Working | Rolling 20-exchange JSON |
-| Tool dispatcher | ✅ Working | 14 tools registered |
+| Tool dispatcher | ✅ Working | 14 tools, loop-based multi-step chaining |
 | Wake word | ✅ Ready | Needs `PICOVOICE_KEY` in `.env`; falls back to Enter key |
 | Proactive mode | ✅ Working | Morning briefing 8am, meeting alerts, evening wrap 6pm |
 | Memory summarisation | ✅ Working | Compresses at 30 exchanges, injects summary into system prompt |
@@ -46,7 +46,7 @@
 - Spotify `play_track` search requires `SPOTIFY_TOKEN` in `.env`; without it, falls back to opening a Spotify URI search
 - `web_search` uses DuckDuckGo Instant Answers — works well for facts/people, weak on recent news
 - `file_manager` find_file skips `Library/` and `.Trash` but can be slow on large home dirs
-- Multi-step tool calls (e.g. "set a reminder for tomorrow at 9") require two tool calls in sequence — Claude handles this correctly
+- Multi-step tool chains fully supported — `think()` loops until Claude returns plain text
 - Wake word uses `"hey siri"` built-in keyword (closest phonetically) — can be replaced with a custom "Hey SARA" keyword via Picovoice Console (paid or custom tier)
 - `screen_context` captures the full display — on multi-monitor setups it captures only the primary screen
 

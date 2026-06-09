@@ -267,12 +267,7 @@ def think(user_input):
     if summary:
         system += f"\n\nContext from earlier conversations:\n{summary}"
 
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=300,
-        system=system,
-        messages=trimmed,
-        tools=[
+    tools_schema = [
             {
                 "name": "get_weather",
                 "description": "Get current weather for a city. Use when Yash asks about weather.",
@@ -496,146 +491,115 @@ def think(user_input):
                 }
             }
         ]
+
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=300,
+        system=system,
+        messages=trimmed,
+        tools=tools_schema
     )
 
-    # Handle tool use
-    if response.stop_reason == "tool_use":
-        tool_use = next(b for b in response.content if b.type == "tool_use")
-        tool_name = tool_use.name
-        tool_input = tool_use.input
+    # Tool loop — keeps running until Claude returns a plain text response
+    while response.stop_reason == "tool_use":
+        tool_results = []
+        for block in response.content:
+            if not hasattr(block, "type") or block.type != "tool_use":
+                continue
+            tool_name  = block.name
+            tool_input = block.input
 
-        if tool_name == "get_current_datetime":
-            tool_result = get_current_datetime()
-        elif tool_name == "get_weather":
-            city = tool_input.get("city", "Bangalore")
-            tool_result = get_weather(city)
-        elif tool_name == "create_note":
-            title = tool_input.get("title", "Note")
-            body = tool_input.get("body", "")
-            tool_result = create_note(title, body)
-        elif tool_name == "create_reminder":
-            title = tool_input.get("title", "Reminder")
-            notes = tool_input.get("notes", "")
-            due_date = tool_input.get("due_date", None)
-            tool_result = create_reminder(title, notes, due_date)
-        elif tool_name == "mac_control":
-            action = tool_input.get("action")
-            if action == "set_volume":
-                tool_result = set_volume(tool_input.get("level", 50))
-            elif action == "mute":
-                tool_result = mute()
-            elif action == "unmute":
-                tool_result = unmute()
-            elif action == "set_brightness":
-                tool_result = set_brightness(tool_input.get("level", 50))
-            elif action == "open_app":
-                tool_result = open_app(tool_input.get("app_name", ""))
-            elif action == "quit_app":
-                tool_result = quit_app(tool_input.get("app_name", ""))
-            elif action == "lock_screen":
-                tool_result = lock_screen()
-            elif action == "empty_trash":
-                tool_result = empty_trash()
+            if tool_name == "get_current_datetime":
+                result = get_current_datetime()
+            elif tool_name == "get_weather":
+                result = get_weather(tool_input.get("city", "Bangalore"))
+            elif tool_name == "create_note":
+                result = create_note(tool_input.get("title", "Note"), tool_input.get("body", ""))
+            elif tool_name == "create_reminder":
+                result = create_reminder(tool_input.get("title", "Reminder"),
+                                         tool_input.get("notes", ""),
+                                         tool_input.get("due_date"))
+            elif tool_name == "mac_control":
+                action = tool_input.get("action")
+                if action == "set_volume":      result = set_volume(tool_input.get("level", 50))
+                elif action == "mute":          result = mute()
+                elif action == "unmute":        result = unmute()
+                elif action == "set_brightness":result = set_brightness(tool_input.get("level", 50))
+                elif action == "open_app":      result = open_app(tool_input.get("app_name", ""))
+                elif action == "quit_app":      result = quit_app(tool_input.get("app_name", ""))
+                elif action == "lock_screen":   result = lock_screen()
+                elif action == "empty_trash":   result = empty_trash()
+                else:                           result = f"Unknown mac_control action: {action}"
+            elif tool_name == "screen_context":
+                result = get_screen_context(tool_input.get("question", "What is on the screen?"))
+            elif tool_name == "messaging":
+                action  = tool_input.get("action")
+                contact = tool_input.get("contact", "")
+                message = tool_input.get("message", "")
+                if action == "send_imessage":   result = send_imessage(contact, message)
+                elif action == "send_sms":      result = send_sms(contact, message)
+                else:                           result = f"Unknown messaging action: {action}"
+            elif tool_name == "timer":
+                result = set_timer(tool_input.get("minutes", 1), tool_input.get("label", "Timer"))
+            elif tool_name == "spotify":
+                action = tool_input.get("action")
+                if action == "play":                result = play()
+                elif action == "pause":             result = pause()
+                elif action == "next_track":        result = next_track()
+                elif action == "previous_track":    result = previous_track()
+                elif action == "get_current_track": result = get_current_track()
+                elif action == "set_volume":        result = set_spotify_volume(tool_input.get("level", 50))
+                elif action == "play_track":        result = play_track(tool_input.get("query", ""))
+                else:                               result = f"Unknown spotify action: {action}"
+            elif tool_name == "system_stats":
+                action = tool_input.get("action")
+                if action == "get_system_stats":    result = get_system_stats()
+                elif action == "get_top_processes": result = get_top_processes()
+                elif action == "get_disk_usage":    result = get_disk_usage()
+                else:                               result = f"Unknown system_stats action: {action}"
+            elif tool_name == "calendar":
+                action = tool_input.get("action")
+                if action == "get_todays_events":   result = get_todays_events()
+                elif action == "get_upcoming_events":result = get_upcoming_events(tool_input.get("days", 7))
+                elif action == "create_event":
+                    result = create_event(tool_input.get("title", "Event"),
+                                          tool_input.get("start", ""),
+                                          tool_input.get("end", ""),
+                                          tool_input.get("calendar", "Home"))
+                else:                               result = f"Unknown calendar action: {action}"
+            elif tool_name == "file_manager":
+                action = tool_input.get("action")
+                if action == "find_file":           result = find_file(tool_input.get("name", ""), tool_input.get("search_dir", "~"))
+                elif action == "open_file":         result = open_file(tool_input.get("path", ""))
+                elif action == "reveal_in_finder":  result = reveal_in_finder(tool_input.get("path", ""))
+                elif action == "list_folder":       result = list_folder(tool_input.get("path", "~/Desktop"))
+                else:                               result = f"Unknown file_manager action: {action}"
+            elif tool_name == "web_search":
+                result = web_search(tool_input.get("query", ""))
             else:
-                tool_result = f"Unknown mac_control action: {action}"
-        elif tool_name == "screen_context":
-            tool_result = get_screen_context(tool_input.get("question", "What is on the screen?"))
-        elif tool_name == "messaging":
-            action = tool_input.get("action")
-            contact = tool_input.get("contact", "")
-            message = tool_input.get("message", "")
-            if action == "send_imessage":
-                tool_result = send_imessage(contact, message)
-            elif action == "send_sms":
-                tool_result = send_sms(contact, message)
-            else:
-                tool_result = f"Unknown messaging action: {action}"
-        elif tool_name == "timer":
-            tool_result = set_timer(
-                tool_input.get("minutes", 1),
-                tool_input.get("label", "Timer")
-            )
-        elif tool_name == "spotify":
-            action = tool_input.get("action")
-            if action == "play":
-                tool_result = play()
-            elif action == "pause":
-                tool_result = pause()
-            elif action == "next_track":
-                tool_result = next_track()
-            elif action == "previous_track":
-                tool_result = previous_track()
-            elif action == "get_current_track":
-                tool_result = get_current_track()
-            elif action == "set_volume":
-                tool_result = set_spotify_volume(tool_input.get("level", 50))
-            elif action == "play_track":
-                tool_result = play_track(tool_input.get("query", ""))
-            else:
-                tool_result = f"Unknown spotify action: {action}"
-        elif tool_name == "system_stats":
-            action = tool_input.get("action")
-            if action == "get_system_stats":
-                tool_result = get_system_stats()
-            elif action == "get_top_processes":
-                tool_result = get_top_processes()
-            elif action == "get_disk_usage":
-                tool_result = get_disk_usage()
-            else:
-                tool_result = f"Unknown system_stats action: {action}"
-        elif tool_name == "calendar":
-            action = tool_input.get("action")
-            if action == "get_todays_events":
-                tool_result = get_todays_events()
-            elif action == "get_upcoming_events":
-                tool_result = get_upcoming_events(tool_input.get("days", 7))
-            elif action == "create_event":
-                tool_result = create_event(
-                    tool_input.get("title", "Event"),
-                    tool_input.get("start", ""),
-                    tool_input.get("end", ""),
-                    tool_input.get("calendar", "Home")
-                )
-            else:
-                tool_result = f"Unknown calendar action: {action}"
-        elif tool_name == "file_manager":
-            action = tool_input.get("action")
-            if action == "find_file":
-                tool_result = find_file(tool_input.get("name", ""), tool_input.get("search_dir", "~"))
-            elif action == "open_file":
-                tool_result = open_file(tool_input.get("path", ""))
-            elif action == "reveal_in_finder":
-                tool_result = reveal_in_finder(tool_input.get("path", ""))
-            elif action == "list_folder":
-                tool_result = list_folder(tool_input.get("path", "~/Desktop"))
-            else:
-                tool_result = f"Unknown file_manager action: {action}"
-        elif tool_name == "web_search":
-            tool_result = web_search(tool_input.get("query", ""))
+                result = f"Unknown tool: {tool_name}"
 
-        # Serialize to plain dicts before storing
+            print(f"[TOOL] {tool_name} → {str(result)[:80]}")
+            tool_results.append({
+                "type": "tool_result",
+                "tool_use_id": block.id,
+                "content": str(result)
+            })
+
+        # Add assistant + tool results to history, then loop
         conversation_history.append({"role": "assistant", "content": serialize_content(response.content)})
-        conversation_history.append({
-            "role": "user",
-            "content": [
-                {
-                    "type": "tool_result",
-                    "tool_use_id": tool_use.id,
-                    "content": tool_result
-                }
-            ]
-        })
+        conversation_history.append({"role": "user", "content": tool_results})
 
-        follow_up = client.messages.create(
+        response = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=300,
-            system=SYSTEM_PROMPT,
-            messages=conversation_history[-MAX_HISTORY:]
+            system=system,
+            messages=sanitize_history(conversation_history[-MAX_HISTORY:]),
+            tools=tools_schema
         )
 
-        reply = follow_up.content[0].text
-    else:
-        reply = response.content[0].text
+    # Claude returned a text response
+    reply = next((b.text for b in response.content if hasattr(b, "text")), "Sorry Boss, I didn't get a response.")
 
     conversation_history.append({"role": "assistant", "content": reply})
     condensed = maybe_summarise(conversation_history)

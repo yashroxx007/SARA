@@ -4,6 +4,16 @@ All notable changes to SARA, in reverse chronological order.
 
 ---
 
+## [0.5.3] — 9 June 2026 — Multi-Step Tool Chaining Fix
+
+### Fixed
+- **IndexError on chained tool calls** — `think()` previously handled only one tool call per turn. If Claude chained tools (e.g. `get_current_datetime` → `create_reminder`, or `system_stats` → `web_search`), the follow-up response was another `tool_use` block, and `follow_up.content[0].text` crashed with `IndexError: list index out of range`.
+- Refactored `think()` to use a `while response.stop_reason == "tool_use"` loop. Runs all tool_use blocks in a single response (batch), appends results, re-calls Claude, repeats until `stop_reason == "end_turn"`.
+- Extracted `tools=[...]` into a local `tools_schema` variable — reused by both the initial call and every loop iteration.
+- Reply extraction changed from `response.content[0].text` to `next((b.text for b in response.content if hasattr(b, "text")), fallback)` — safe against edge-case empty text blocks.
+
+---
+
 ## [0.5.2] — 9 June 2026 — Wake Word: "Hey SARA"
 
 ### Changed
