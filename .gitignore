@@ -1,0 +1,49 @@
+# Environment
+.env
+.env.local
+!.env.example
+
+# Virtual environments
+.venv/
+.venv-1/
+.venv-2/
+venv/
+env/
+
+# Large model files (download separately)
+*.onnx
+*.bin
+*.tflite
+*.pt
+*.pth
+
+# Memory / runtime state
+memory.json
+memory_summary.json
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Claude Code
+.claude/
+
+# Test artifacts
+*.log

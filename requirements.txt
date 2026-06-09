@@ -1,0 +1,8 @@
+anthropic==0.107.0
+faster-whisper==1.2.1
+kokoro-onnx==0.4.7
+numpy==2.4.6
+psutil==7.2.2
+python-dotenv==1.2.2
+sounddevice==0.5.5
+webrtcvad==2.0.10
