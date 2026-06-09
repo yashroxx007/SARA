@@ -71,10 +71,43 @@ SUMMARY_FILE = "memory_summary.json"
 SUMMARY_THRESHOLD = 30   # summarise when history exceeds this
 KEEP_RECENT = 10         # always keep the last N exchanges verbatim
 
+def sanitize_history(history):
+    """Remove orphaned tool_result blocks that have no matching tool_use in history.
+    This prevents BadRequestError when tool_use messages get trimmed but their
+    tool_result pairs remain."""
+    # Collect all tool_use IDs present in assistant messages
+    valid_ids = set()
+    for msg in history:
+        if msg["role"] == "assistant":
+            content = msg.get("content", [])
+            if isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "tool_use":
+                        valid_ids.add(block["id"])
+
+    # Drop any user message that is purely an orphaned tool_result
+    cleaned = []
+    for msg in history:
+        if msg["role"] == "user":
+            content = msg.get("content", [])
+            if isinstance(content, list) and content:
+                is_tool_result_msg = all(
+                    isinstance(b, dict) and b.get("type") == "tool_result"
+                    for b in content
+                )
+                if is_tool_result_msg:
+                    matched = all(b.get("tool_use_id") in valid_ids for b in content)
+                    if not matched:
+                        print("[MEMORY] Dropped orphaned tool_result block.")
+                        continue
+        cleaned.append(msg)
+    return cleaned
+
+
 def load_memory():
     if os.path.exists(MEMORY_FILE):
         with open(MEMORY_FILE, "r") as f:
-            return json.load(f)
+            return sanitize_history(json.load(f))
     return []
 
 def load_summary():
@@ -226,7 +259,7 @@ def serialize_content(content):
 def think(user_input):
     conversation_history.append({"role": "user", "content": user_input})
 
-    trimmed = conversation_history[-MAX_HISTORY:]
+    trimmed = sanitize_history(conversation_history[-MAX_HISTORY:])
 
     # Inject running summary into system prompt if it exists
     summary = load_summary()
