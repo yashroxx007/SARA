@@ -614,22 +614,41 @@ print("Initialization complete, starting...")
 speak("Hey Boss, I'm online. What do we need to do?")
 proactive.start()
 
+# Exit phrases that end conversation mode and put SARA back to sleep
+SLEEP_PHRASES = ["that's all", "thats all", "thanks sara", "go to sleep",
+                 "stop listening", "sleep", "goodbye", "shut down"]
+
 print("Say 'Hey SARA' to activate.")
 
 while True:
-    wait_for_wake_word()   # blocks until wake word / Enter
-    user_input = listen()
+    # --- Sleeping: wait for wake word ---
+    wait_for_wake_word()
+    print("[AWAKE] Conversation mode active. Listening...")
 
-    if not user_input:
-        continue
+    # --- Awake: continuous conversation loop ---
+    while True:
+        user_input = listen()
 
-    print(f"You: {user_input}")
+        # Silence / nothing heard → go back to sleep
+        if not user_input:
+            print("[SLEEP] No input detected. Back to listening for wake word.")
+            break
 
-    if "goodbye" in user_input.lower() or "shut down" in user_input.lower():
-        speak("Shutting down. Later.")
-        save_memory(conversation_history)
-        break
+        print(f"You: {user_input}")
+        lower = user_input.lower()
 
-    response = think(user_input)
-    print(f"SARAH: {response}")
-    speak(response)
+        # Hard shutdown
+        if "shut down" in lower or "goodbye sara" in lower:
+            speak("Shutting down. Later, Boss.")
+            save_memory(conversation_history)
+            exit(0)
+
+        # Soft sleep — end conversation mode
+        if any(phrase in lower for phrase in SLEEP_PHRASES):
+            speak("Got it Boss. Just say Hey SARA when you need me.")
+            break
+
+        response = think(user_input)
+        print(f"SARA: {response}")
+        speak(response)
+        # Loop back — keep listening for follow-up without needing wake word
