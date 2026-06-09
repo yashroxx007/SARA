@@ -70,28 +70,15 @@ Reference what he had today. Maybe push him to wind down or note anything pendin
 
 def _check_upcoming_meetings(now: datetime):
     try:
-        from src.tools.calendar_tool import get_upcoming_events
-        import anthropic
+        from src.tools.calendar_tool import get_events_in_next_minutes
 
-        # Get events in the next 20 minutes
-        upcoming = get_upcoming_events(days=1)
-        if "No upcoming" in upcoming:
+        # Only look at events starting in the next 16 minutes from right now
+        events = get_events_in_next_minutes(minutes=16)
+        if not events:
             return
 
-        # Ask Claude if any event starts in ~15 minutes
-        prompt = f"""Current time: {now.strftime('%-d %B %Y, %I:%M %p')}
-Upcoming events: {upcoming}
-
-Is there an event starting in approximately 10-15 minutes? If yes, reply with ONLY the alert message Yash should hear (1 sentence, e.g. 'Heads up, your standup starts in 15 minutes.'). If no, reply with exactly: NO"""
-
-        response = _client.messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=60,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        alert = response.content[0].text.strip()
-        if alert and alert != "NO" and not alert.startswith("NO"):
-            _speak_fn(alert)
+        for event in events:
+            _speak_fn(f"Heads up Boss, {event['title']} starts in about 15 minutes.")
     except Exception as e:
         print(f"[PROACTIVE] Meeting check error: {e}")
 

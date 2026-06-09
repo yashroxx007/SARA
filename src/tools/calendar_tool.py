@@ -27,6 +27,35 @@ def get_todays_events() -> str:
     return result.stdout.strip()
 
 
+def get_events_in_next_minutes(minutes: int = 20) -> list[dict]:
+    """Returns events starting within the next `minutes` from now. Used by proactive mode."""
+    seconds = minutes * 60
+    script = f'''
+    tell application "Calendar"
+        set now to current date
+        set cutoff to now + {seconds}
+        set found to {{}}
+        repeat with cal in calendars
+            set calEvents to (every event of cal whose start date >= now and start date <= cutoff)
+            repeat with e in calEvents
+                set end of found to (summary of e) & "|" & ((start date of e) as string)
+            end repeat
+        end repeat
+        return found as string
+    end tell
+    '''
+    result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
+    if result.returncode != 0 or not result.stdout.strip():
+        return []
+    raw = result.stdout.strip()
+    events = []
+    for item in raw.split(", "):
+        if "|" in item:
+            parts = item.split("|", 1)
+            events.append({"title": parts[0].strip(), "start": parts[1].strip()})
+    return events
+
+
 def get_upcoming_events(days: int = 7) -> str:
     script = f'''
     tell application "Calendar"
