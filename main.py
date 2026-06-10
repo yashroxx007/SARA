@@ -21,6 +21,7 @@ from src.tools.spotify import play, pause, next_track, previous_track, get_curre
 from src.tools.timer import set_timer, set_speak
 from src.tools.messaging import send_imessage, send_sms
 from src.tools.screen_context import get_screen_context
+from src.tools.projects import list_projects, get_project, update_project, create_project
 from src.core import proactive
 from src.core.wake_word import wait_for_wake_word
 from src.memory.context import build_memory_block
@@ -86,6 +87,15 @@ MEMORY
 
 You have persistent memory across sessions. Prior conversations are loaded at startup.
 Never say your memory resets — it doesn't. Reference past context naturally, without announcing it.
+
+---
+
+PROJECTS
+
+Yash builds across multiple projects. You have a projects tool — use it.
+When he says he's working on something, pull that project's context before advising.
+When he reports progress, a decision, or a new idea, log it to the right project without being asked.
+Don't recite project files back at him — absorb them, then talk like you already knew.
 
 ---
 
@@ -518,6 +528,33 @@ TOOLS_SCHEMA = [
                 }
             },
             {
+                "name": "projects",
+                "description": "Yash's project knowledge base — what he's building, current focus, decision log. Use get_project when he mentions working on a project or asks what's next on one. Use update_project to log progress, decisions, or ideas he mentions — proactively, without being asked. Projects include: Instagram content, digital product + app, SARA.",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "action": {
+                            "type": "string",
+                            "enum": ["list_projects", "get_project", "update_project", "create_project"],
+                            "description": "Project action to perform"
+                        },
+                        "name": {
+                            "type": "string",
+                            "description": "Project name, fuzzy matched — 'instagram', 'the app project', 'sara' all work"
+                        },
+                        "note": {
+                            "type": "string",
+                            "description": "For update_project: the progress note, decision, or idea to log"
+                        },
+                        "description": {
+                            "type": "string",
+                            "description": "For create_project: one-line description of the new project"
+                        }
+                    },
+                    "required": ["action"]
+                }
+            },
+            {
                 "name": "web_search",
                 "description": "Search the web for real-time information: news, facts, prices, people, definitions. Use when Yash asks something you don't know or that requires current information.",
                 "input_schema": {
@@ -586,6 +623,12 @@ TOOL_HANDLERS = {
         "get_upcoming_events": lambda i: get_upcoming_events(i.get("days", 7)),
         "create_event":        lambda i: create_event(i.get("title", "Event"), i.get("start", ""),
                                                       i.get("end", ""), i.get("calendar", "Home")),
+    }),
+    "projects": _action_tool({
+        "list_projects":  lambda i: list_projects(),
+        "get_project":    lambda i: get_project(i.get("name", "")),
+        "update_project": lambda i: update_project(i.get("name", ""), i.get("note", "")),
+        "create_project": lambda i: create_project(i.get("name", ""), i.get("description", "")),
     }),
     "file_manager": _action_tool({
         "find_file":        lambda i: find_file(i.get("name", ""), i.get("search_dir", "~")),

@@ -4,6 +4,18 @@ All notable changes to SARA, in reverse chronological order.
 
 ---
 
+## [0.6.1] — 11 June 2026 — Project Knowledge
+
+### Added
+- **Projects tool** (`src/tools/projects.py`) — SARA now knows what Yash is building across all his work, not just SARA itself.
+  - `projects/` folder in repo root: one markdown file per project (instagram-content, digital-product-app, sara)
+  - `list_projects`, `get_project` (fuzzy name match — "the app project" works), `update_project` (timestamped log entries by voice), `create_project`
+  - System prompt instructs SARA to pull project context when Yash mentions working on something, and to log progress/decisions proactively
+  - Cross-Claude bridge: other repos' CLAUDE.md files can instruct Claude Code to update `~/SARA/projects/<name>.md` at session end — knowledge flows from any Claude surface into SARA
+  - Token-efficient by design: project context loads on demand via tool, not injected into every turn
+
+---
+
 ## [0.6.0] — 11 June 2026 — Resilience + Token Overhaul
 
 ### Fixed
