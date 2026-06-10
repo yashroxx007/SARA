@@ -61,21 +61,27 @@ def _read_source(path: str) -> str:
         with open(path) as fh:
             return fh.read()[:MAX_SOURCE_CHARS]
     if os.path.isdir(path):
-        md_files = sorted(
-            (f for f in os.listdir(path) if f.endswith(".md")),
-            key=lambda f: os.path.getmtime(os.path.join(path, f)),
-            reverse=True,
-        )
-        parts, used = [], 0
-        for f in md_files:
-            with open(os.path.join(path, f)) as fh:
+        md_files = []
+        for root, dirs, files in os.walk(path):
+            dirs[:] = [d for d in dirs if not d.startswith(".")]
+            for f in files:
+                if f.endswith(".md"):
+                    full = os.path.join(root, f)
+                    md_files.append((os.path.getmtime(full), os.path.relpath(full, path), full))
+        md_files.sort(reverse=True)  # newest first
+
+        parts, used, skipped = [], 0, []
+        for _, rel, full in md_files:
+            with open(full) as fh:
                 content = fh.read()
-            chunk = f"--- {f} ---\n{content}"
+            chunk = f"--- {rel} ---\n{content}"
             if used + len(chunk) > MAX_SOURCE_CHARS:
-                parts.append(f"--- (truncated; remaining files: {', '.join(md_files[md_files.index(f):])}) ---")
-                break
+                skipped.append(rel)
+                continue
             parts.append(chunk)
             used += len(chunk)
+        if skipped:
+            parts.append(f"--- (older/larger files not shown: {', '.join(skipped)}) ---")
         return "\n\n".join(parts) if parts else "(no markdown files found)"
     return f"(source not found: {path})"
 
