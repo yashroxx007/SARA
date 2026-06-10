@@ -294,13 +294,17 @@ def think(user_input):
     tools_schema = [
             {
                 "name": "get_weather",
-                "description": "Get current weather for a city. Use when Yash asks about weather.",
+                "description": "Get weather for a city — current conditions or multi-day forecast. Use forecast_days=0 for current conditions, forecast_days=1 when asked about tomorrow, forecast_days=3 for the next few days, etc.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
                         "city": {
                             "type": "string",
                             "description": "City name, defaults to Bangalore"
+                        },
+                        "forecast_days": {
+                            "type": "integer",
+                            "description": "0 = current only, 1 = tomorrow, 2-7 = multi-day forecast. Default 0."
                         }
                     },
                     "required": []
@@ -536,7 +540,8 @@ def think(user_input):
             if tool_name == "get_current_datetime":
                 result = get_current_datetime()
             elif tool_name == "get_weather":
-                result = get_weather(tool_input.get("city", "Bangalore"))
+                result = get_weather(tool_input.get("city", "Bangalore"),
+                                     tool_input.get("forecast_days", 0))
             elif tool_name == "create_note":
                 result = create_note(tool_input.get("title", "Note"), tool_input.get("body", ""))
             elif tool_name == "create_reminder":
