@@ -1,9 +1,11 @@
-# Instagram Content
+# Instagram Content — DataWith_Yash
 
-Content project for Instagram — fill in the niche, posting cadence, and growth goal.
+Data Analytics education brand on Instagram and LinkedIn (@DataWith_Yash). SQL, Python, Excel, Power BI, career guidance for beginners and career switchers. Code-generated carousel production — no manual design.
+
+source: /Users/yash/DataWithYash/DataWith_Yash.md
 
 ## Current Focus
 
-(What are you working on right now? Content pillars? Editing workflow? Posting schedule?)
+(Log current carousel topics and growth experiments here, or by voice.)
 
 ## Log

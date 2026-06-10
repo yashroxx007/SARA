@@ -50,12 +50,50 @@ def list_projects() -> str:
     return "\n".join(lines)
 
 
+MAX_SOURCE_CHARS = 8000  # per linked source, keep token cost sane
+
+
+def _read_source(path: str) -> str:
+    """Read a linked source — a markdown file, or a directory (Obsidian vault):
+    all top-level .md files, newest first, capped."""
+    path = os.path.expanduser(path.strip())
+    if os.path.isfile(path):
+        with open(path) as fh:
+            return fh.read()[:MAX_SOURCE_CHARS]
+    if os.path.isdir(path):
+        md_files = sorted(
+            (f for f in os.listdir(path) if f.endswith(".md")),
+            key=lambda f: os.path.getmtime(os.path.join(path, f)),
+            reverse=True,
+        )
+        parts, used = [], 0
+        for f in md_files:
+            with open(os.path.join(path, f)) as fh:
+                content = fh.read()
+            chunk = f"--- {f} ---\n{content}"
+            if used + len(chunk) > MAX_SOURCE_CHARS:
+                parts.append(f"--- (truncated; remaining files: {', '.join(md_files[md_files.index(f):])}) ---")
+                break
+            parts.append(chunk)
+            used += len(chunk)
+        return "\n\n".join(parts) if parts else "(no markdown files found)"
+    return f"(source not found: {path})"
+
+
 def get_project(name: str) -> str:
     f = _find_project(name)
     if not f:
         return f"No project matching '{name}'. Projects: {list_projects()}"
     with open(os.path.join(PROJECTS_DIR, f)) as fh:
-        return fh.read()
+        content = fh.read()
+
+    # Follow `source:` pointers — live files/vaults elsewhere on the Mac
+    out = [content]
+    for line in content.splitlines():
+        if line.lower().startswith("source:"):
+            src = line.split(":", 1)[1]
+            out.append(f"\n=== Linked source ({src.strip()}) ===\n{_read_source(src)}")
+    return "\n".join(out)
 
 
 def update_project(name: str, note: str) -> str:
