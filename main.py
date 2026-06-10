@@ -28,7 +28,7 @@ load_dotenv()
 
 # --- Config ---
 MEMORY_FILE = "memory.json"
-MAX_HISTORY = 20  # keep last 20 exchanges to save tokens
+MAX_HISTORY = 15  # keep last 15 exchanges to save tokens
 
 # --- System Prompt — tight, voice optimized ---
 SYSTEM_PROMPT = """You are SARA — Yash's AI operator. Not an assistant. Not a chatbot. An operator.
@@ -92,8 +92,8 @@ The bar is FRIDAY. Match it."""
 
 # --- Memory ---
 SUMMARY_FILE = "memory_summary.json"
-SUMMARY_THRESHOLD = 30   # summarise when history exceeds this
-KEEP_RECENT = 10         # always keep the last N exchanges verbatim
+SUMMARY_THRESHOLD = 20   # summarise when history exceeds this
+KEEP_RECENT = 8          # always keep the last N exchanges verbatim
 
 def sanitize_history(history):
     """Remove orphaned tool_result blocks that have no matching tool_use in history.
