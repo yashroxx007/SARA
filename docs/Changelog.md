@@ -4,6 +4,47 @@ All notable changes to SARA, in reverse chronological order.
 
 ---
 
+## [0.6.0] — 11 June 2026 — Resilience + Token Overhaul
+
+### Fixed
+- **SARA no longer dies when anything fails.** Every failure path now speaks instead of crashing:
+  - Tool exceptions → caught in `dispatch_tool()`, returned as `tool_result` with `is_error: True` so Claude explains what broke
+  - API errors (rate limit, network, 5xx) → caught in main loop, SARA says what's wrong
+  - Mic/stream errors → caught around `listen()`, "Mic glitched, Boss"
+  - Wake word errors → logged, 2s backoff, retry
+  - `sanitize_history` now also strips dangling `tool_use` blocks from a trailing assistant message (crash-recovery artifact that caused 400s)
+
+### Changed
+- **Prompt caching enabled** — `cache_control: ephemeral` on the static system prompt block. Tools schema + system prompt (~3.5K tokens) now cached: cache reads cost 10% of base price and don't count toward the input-token rate limit (which we hit at 105% on Jun 9). Memory block sits after the breakpoint so summary updates don't invalidate the cache.
+- **Dispatcher rewritten as a registry** — `TOOL_HANDLERS` dict + `_action_tool()` wrapper replaces the 70-line if/elif chain. Adding a tool is now one schema entry + one handler line.
+- `TOOLS_SCHEMA` moved to module level (built once, not per call)
+- `_call_claude()` helper deduplicates the two API call sites
+- **Tool loop circuit breaker** — max 8 rounds per turn so a confused model can't loop forever
+
+### Architecture
+- `think()` is now ~50 lines (was ~200)
+- Failure philosophy: the voice loop is sacred — nothing propagates an exception past it
+
+---
+
+## [0.5.4] — 10 June 2026 — Fenced Memory Injection
+
+### Added
+- **`src/memory/context.py`** — new module for memory context fencing (was a stub).
+  - `sanitize_context()` strips any `<memory-context>` tags, system notes, and full fenced blocks from raw summary text before wrapping — a poisoned memory cannot escape its fence and impersonate fresh instructions.
+  - `build_memory_block()` wraps the sanitized summary in a `<memory-context>` block with an inline system note so the model treats it as reference data, not new user input.
+
+### Changed
+- **`main.py`** — fenced memory injection replaces the previous plain string concatenation.
+  - Old: `system += f"\n\nContext from earlier conversations:\n{summary}"`
+  - New: `system += "\n\n" + build_memory_block(summary)` — sanitized and fenced.
+  - Pattern adopted from [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent).
+
+### Security
+- Closes injection vector where a prior conversation containing prompt-injection text could re-enter the system prompt verbatim and impersonate instructions on every subsequent turn.
+
+---
+
 ## [0.5.3] — 9 June 2026 — Multi-Step Tool Chaining Fix
 
 ### Fixed

@@ -1,6 +1,6 @@
 # Current Status
 
-> Last updated: 9 June 2026 (v0.5.3)
+> Last updated: 11 June 2026 (v0.6.0)
 
 ---
 
@@ -11,9 +11,10 @@
 | STT (faster-whisper) | ✅ Working | `tiny` + `int8` + `beam_size=1` — ~4x faster |
 | TTS (Kokoro) | ✅ Working | `af_sarah` voice |
 | VAD | ✅ Working | ~800ms silence cutoff |
-| Claude API | ✅ Working | `claude-sonnet-4-6`, tool use active |
-| Memory | ✅ Working | Rolling 20-exchange JSON |
-| Tool dispatcher | ✅ Working | 14 tools, loop-based multi-step chaining |
+| Claude API | ✅ Working | `claude-sonnet-4-6`, tool use active, prompt caching (v0.6.0) |
+| Memory | ✅ Working | Rolling 15-exchange JSON, fenced injection (v0.5.4) |
+| Tool dispatcher | ✅ Working | 13 tools, registry-based, error-isolated (v0.6.0) |
+| Crash resilience | ✅ Working | Tool/API/mic failures all spoken, never fatal (v0.6.0) |
 | Wake word | ✅ Ready | Needs `PICOVOICE_KEY` in `.env`; falls back to Enter key |
 | Proactive mode | ✅ Working | Morning briefing 8am, meeting alerts, evening wrap 6pm |
 | Memory summarisation | ✅ Working | Compresses at 30 exchanges, injects summary into system prompt |

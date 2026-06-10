@@ -126,6 +126,19 @@ def sanitize_history(history):
                         print("[MEMORY] Dropped orphaned tool_result block.")
                         continue
         cleaned.append(msg)
+
+    # A trailing assistant message ending in tool_use (e.g. from a crash mid-turn)
+    # makes the next API call 400 — strip the tool_use blocks, keep any text.
+    if cleaned and cleaned[-1]["role"] == "assistant":
+        content = cleaned[-1].get("content", [])
+        if isinstance(content, list):
+            text_only = [b for b in content if isinstance(b, dict) and b.get("type") == "text"]
+            if len(text_only) != len(content):
+                if text_only:
+                    cleaned[-1]["content"] = text_only
+                else:
+                    cleaned.pop()
+                print("[MEMORY] Stripped dangling tool_use from last message.")
     return cleaned
 
 
@@ -290,21 +303,8 @@ def serialize_content(content):
         return result
     return content
 
-# --- Brain ---
-def think(user_input):
-    conversation_history.append({"role": "user", "content": user_input})
-
-    trimmed = sanitize_history(conversation_history[-MAX_HISTORY:])
-
-    # Inject running summary into system prompt if it exists.
-    # Fenced so a poisoned memory can't impersonate system instructions.
-    summary = load_summary()
-    system = SYSTEM_PROMPT
-    memory_block = build_memory_block(summary)
-    if memory_block:
-        system += "\n\n" + memory_block
-
-    tools_schema = [
+# --- Tools ---
+TOOLS_SCHEMA = [
             {
                 "name": "get_weather",
                 "description": "Get weather for a city — current conditions or multi-day forecast. Use forecast_days=0 for current conditions, forecast_days=1 when asked about tomorrow, forecast_days=3 for the next few days, etc.",
@@ -533,115 +533,135 @@ def think(user_input):
             }
         ]
 
-    response = client.messages.create(
+
+def _action_tool(table):
+    """Wrap a {action_name: handler} table into a single tool handler."""
+    def handler(inp):
+        action = inp.get("action")
+        fn = table.get(action)
+        if fn is None:
+            return f"Unknown action: {action}"
+        return fn(inp)
+    return handler
+
+
+TOOL_HANDLERS = {
+    "get_current_datetime": lambda inp: get_current_datetime(),
+    "get_weather":    lambda inp: get_weather(inp.get("city", "Bangalore"), inp.get("forecast_days", 0)),
+    "create_note":    lambda inp: create_note(inp.get("title", "Note"), inp.get("body", "")),
+    "create_reminder":lambda inp: create_reminder(inp.get("title", "Reminder"), inp.get("notes", ""), inp.get("due_date")),
+    "screen_context": lambda inp: get_screen_context(inp.get("question", "What is on the screen?")),
+    "timer":          lambda inp: set_timer(inp.get("minutes", 1), inp.get("label", "Timer")),
+    "web_search":     lambda inp: web_search(inp.get("query", "")),
+    "mac_control": _action_tool({
+        "set_volume":     lambda i: set_volume(i.get("level", 50)),
+        "mute":           lambda i: mute(),
+        "unmute":         lambda i: unmute(),
+        "set_brightness": lambda i: set_brightness(i.get("level", 50)),
+        "open_app":       lambda i: open_app(i.get("app_name", "")),
+        "quit_app":       lambda i: quit_app(i.get("app_name", "")),
+        "lock_screen":    lambda i: lock_screen(),
+        "empty_trash":    lambda i: empty_trash(),
+    }),
+    "messaging": _action_tool({
+        "send_imessage": lambda i: send_imessage(i.get("contact", ""), i.get("message", "")),
+        "send_sms":      lambda i: send_sms(i.get("contact", ""), i.get("message", "")),
+    }),
+    "spotify": _action_tool({
+        "play":              lambda i: play(),
+        "pause":             lambda i: pause(),
+        "next_track":        lambda i: next_track(),
+        "previous_track":    lambda i: previous_track(),
+        "get_current_track": lambda i: get_current_track(),
+        "set_volume":        lambda i: set_spotify_volume(i.get("level", 50)),
+        "play_track":        lambda i: play_track(i.get("query", "")),
+    }),
+    "system_stats": _action_tool({
+        "get_system_stats":  lambda i: get_system_stats(),
+        "get_top_processes": lambda i: get_top_processes(),
+        "get_disk_usage":    lambda i: get_disk_usage(),
+    }),
+    "calendar": _action_tool({
+        "get_todays_events":   lambda i: get_todays_events(),
+        "get_upcoming_events": lambda i: get_upcoming_events(i.get("days", 7)),
+        "create_event":        lambda i: create_event(i.get("title", "Event"), i.get("start", ""),
+                                                      i.get("end", ""), i.get("calendar", "Home")),
+    }),
+    "file_manager": _action_tool({
+        "find_file":        lambda i: find_file(i.get("name", ""), i.get("search_dir", "~")),
+        "open_file":        lambda i: open_file(i.get("path", "")),
+        "reveal_in_finder": lambda i: reveal_in_finder(i.get("path", "")),
+        "list_folder":      lambda i: list_folder(i.get("path", "~/Desktop")),
+    }),
+}
+
+
+def dispatch_tool(name, tool_input):
+    """Run one tool. Never raises — failures come back as (error_text, True)
+    so Claude can tell Yash what went wrong instead of the process dying."""
+    handler = TOOL_HANDLERS.get(name)
+    if handler is None:
+        return f"Unknown tool: {name}", True
+    try:
+        return str(handler(tool_input)), False
+    except Exception as e:
+        print(f"[TOOL ERROR] {name}: {type(e).__name__}: {e}")
+        return f"Tool '{name}' failed: {type(e).__name__}: {e}", True
+
+
+def _call_claude(messages, system_blocks):
+    return client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=300,
-        system=system,
-        messages=trimmed,
-        tools=tools_schema
+        system=system_blocks,
+        messages=messages,
+        tools=TOOLS_SCHEMA,
     )
 
+
+# --- Brain ---
+def think(user_input):
+    conversation_history.append({"role": "user", "content": user_input})
+
+    # Static prefix (tools + base prompt) is cached — cache reads cost 10% and
+    # don't count toward the input-token rate limit. Memory block sits after
+    # the breakpoint so summary updates don't invalidate the cache.
+    system_blocks = [{
+        "type": "text",
+        "text": SYSTEM_PROMPT,
+        "cache_control": {"type": "ephemeral"},
+    }]
+    memory_block = build_memory_block(load_summary())
+    if memory_block:
+        system_blocks.append({"type": "text", "text": memory_block})
+
+    response = _call_claude(sanitize_history(conversation_history[-MAX_HISTORY:]), system_blocks)
+
     # Tool loop — keeps running until Claude returns a plain text response
-    while response.stop_reason == "tool_use":
+    MAX_TOOL_ROUNDS = 8  # circuit breaker so a confused model can't loop forever
+    rounds = 0
+    while response.stop_reason == "tool_use" and rounds < MAX_TOOL_ROUNDS:
+        rounds += 1
         tool_results = []
         for block in response.content:
-            if not hasattr(block, "type") or block.type != "tool_use":
+            if getattr(block, "type", None) != "tool_use":
                 continue
-            tool_name  = block.name
-            tool_input = block.input
-
-            if tool_name == "get_current_datetime":
-                result = get_current_datetime()
-            elif tool_name == "get_weather":
-                result = get_weather(tool_input.get("city", "Bangalore"),
-                                     tool_input.get("forecast_days", 0))
-            elif tool_name == "create_note":
-                result = create_note(tool_input.get("title", "Note"), tool_input.get("body", ""))
-            elif tool_name == "create_reminder":
-                result = create_reminder(tool_input.get("title", "Reminder"),
-                                         tool_input.get("notes", ""),
-                                         tool_input.get("due_date"))
-            elif tool_name == "mac_control":
-                action = tool_input.get("action")
-                if action == "set_volume":      result = set_volume(tool_input.get("level", 50))
-                elif action == "mute":          result = mute()
-                elif action == "unmute":        result = unmute()
-                elif action == "set_brightness":result = set_brightness(tool_input.get("level", 50))
-                elif action == "open_app":      result = open_app(tool_input.get("app_name", ""))
-                elif action == "quit_app":      result = quit_app(tool_input.get("app_name", ""))
-                elif action == "lock_screen":   result = lock_screen()
-                elif action == "empty_trash":   result = empty_trash()
-                else:                           result = f"Unknown mac_control action: {action}"
-            elif tool_name == "screen_context":
-                result = get_screen_context(tool_input.get("question", "What is on the screen?"))
-            elif tool_name == "messaging":
-                action  = tool_input.get("action")
-                contact = tool_input.get("contact", "")
-                message = tool_input.get("message", "")
-                if action == "send_imessage":   result = send_imessage(contact, message)
-                elif action == "send_sms":      result = send_sms(contact, message)
-                else:                           result = f"Unknown messaging action: {action}"
-            elif tool_name == "timer":
-                result = set_timer(tool_input.get("minutes", 1), tool_input.get("label", "Timer"))
-            elif tool_name == "spotify":
-                action = tool_input.get("action")
-                if action == "play":                result = play()
-                elif action == "pause":             result = pause()
-                elif action == "next_track":        result = next_track()
-                elif action == "previous_track":    result = previous_track()
-                elif action == "get_current_track": result = get_current_track()
-                elif action == "set_volume":        result = set_spotify_volume(tool_input.get("level", 50))
-                elif action == "play_track":        result = play_track(tool_input.get("query", ""))
-                else:                               result = f"Unknown spotify action: {action}"
-            elif tool_name == "system_stats":
-                action = tool_input.get("action")
-                if action == "get_system_stats":    result = get_system_stats()
-                elif action == "get_top_processes": result = get_top_processes()
-                elif action == "get_disk_usage":    result = get_disk_usage()
-                else:                               result = f"Unknown system_stats action: {action}"
-            elif tool_name == "calendar":
-                action = tool_input.get("action")
-                if action == "get_todays_events":   result = get_todays_events()
-                elif action == "get_upcoming_events":result = get_upcoming_events(tool_input.get("days", 7))
-                elif action == "create_event":
-                    result = create_event(tool_input.get("title", "Event"),
-                                          tool_input.get("start", ""),
-                                          tool_input.get("end", ""),
-                                          tool_input.get("calendar", "Home"))
-                else:                               result = f"Unknown calendar action: {action}"
-            elif tool_name == "file_manager":
-                action = tool_input.get("action")
-                if action == "find_file":           result = find_file(tool_input.get("name", ""), tool_input.get("search_dir", "~"))
-                elif action == "open_file":         result = open_file(tool_input.get("path", ""))
-                elif action == "reveal_in_finder":  result = reveal_in_finder(tool_input.get("path", ""))
-                elif action == "list_folder":       result = list_folder(tool_input.get("path", "~/Desktop"))
-                else:                               result = f"Unknown file_manager action: {action}"
-            elif tool_name == "web_search":
-                result = web_search(tool_input.get("query", ""))
-            else:
-                result = f"Unknown tool: {tool_name}"
-
-            print(f"[TOOL] {tool_name} → {str(result)[:80]}")
+            result, is_error = dispatch_tool(block.name, block.input)
+            print(f"[TOOL] {block.name} → {result[:80]}")
             tool_results.append({
                 "type": "tool_result",
                 "tool_use_id": block.id,
-                "content": str(result)
+                "content": result,
+                "is_error": is_error,
             })
 
-        # Add assistant + tool results to history, then loop
         conversation_history.append({"role": "assistant", "content": serialize_content(response.content)})
         conversation_history.append({"role": "user", "content": tool_results})
 
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=300,
-            system=system,
-            messages=sanitize_history(conversation_history[-MAX_HISTORY:]),
-            tools=tools_schema
-        )
+        response = _call_claude(sanitize_history(conversation_history[-MAX_HISTORY:]), system_blocks)
 
-    # Claude returned a text response
-    reply = next((b.text for b in response.content if hasattr(b, "text")), "Sorry Boss, I didn't get a response.")
+    reply = next((b.text for b in response.content if hasattr(b, "text")),
+                 "Sorry Boss, I didn't get a response.")
 
     conversation_history.append({"role": "assistant", "content": reply})
     condensed = maybe_summarise(conversation_history)
@@ -664,12 +684,29 @@ print("Say 'Hey SARA' to activate.")
 
 while True:
     # --- Sleeping: wait for wake word ---
-    wait_for_wake_word()
+    try:
+        wait_for_wake_word()
+    except KeyboardInterrupt:
+        save_memory(conversation_history)
+        raise
+    except Exception as e:
+        print(f"[WAKE ERROR] {type(e).__name__}: {e} — retrying in 2s")
+        import time as _time; _time.sleep(2)
+        continue
+
     print("[AWAKE] Conversation mode active. Listening...")
 
     # --- Awake: continuous conversation loop ---
     while True:
-        user_input = listen()
+        try:
+            user_input = listen()
+        except KeyboardInterrupt:
+            save_memory(conversation_history)
+            raise
+        except Exception as e:
+            print(f"[LISTEN ERROR] {type(e).__name__}: {e}")
+            speak("Mic glitched, Boss. Say that again?")
+            continue
 
         # Silence / nothing heard → go back to sleep
         if not user_input:
@@ -690,7 +727,22 @@ while True:
             speak("Got it Boss. Just say Hey SARA when you need me.")
             break
 
-        response = think(user_input)
+        try:
+            response = think(user_input)
+        except KeyboardInterrupt:
+            save_memory(conversation_history)
+            raise
+        except anthropic.RateLimitError:
+            response = "I'm rate limited, Boss. Give me a minute and try again."
+        except anthropic.APIConnectionError:
+            response = "Can't reach the API, Boss. Check the network."
+        except anthropic.APIStatusError as e:
+            print(f"[API ERROR] {e.status_code}: {e}")
+            response = "The API threw an error, Boss. Try that again."
+        except Exception as e:
+            print(f"[THINK ERROR] {type(e).__name__}: {e}")
+            response = "Something broke on my end, Boss. Say that again and I'll take another run at it."
+
         print(f"SARA: {response}")
         speak(response)
         # Loop back — keep listening for follow-up without needing wake word
