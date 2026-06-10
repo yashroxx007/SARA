@@ -1,3 +1,4 @@
+import time
 import psutil
 import subprocess
 
@@ -25,16 +26,31 @@ def get_system_stats() -> str:
 
 
 def get_top_processes(n: int = 5) -> str:
-    procs = []
-    for p in psutil.process_iter(["name", "cpu_percent", "memory_percent"]):
+    # First pass: initialise cpu_percent counters (always returns 0 on first call)
+    procs = {}
+    for p in psutil.process_iter(["name", "memory_percent"]):
         try:
-            procs.append(p.info)
+            p.cpu_percent()
+            procs[p.pid] = p
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             pass
-    procs.sort(key=lambda x: x["cpu_percent"] or 0, reverse=True)
-    top = procs[:n]
-    lines = [f"{p['name']} — CPU {p['cpu_percent']:.1f}%, RAM {p['memory_percent']:.1f}%" for p in top]
-    return "Top processes:\n" + "\n".join(lines)
+
+    time.sleep(0.5)  # give psutil a measurement window
+
+    results = []
+    for p in procs.values():
+        try:
+            cpu = p.cpu_percent()
+            mem = p.info.get("memory_percent") or 0
+            results.append({"name": p.info["name"], "cpu": cpu, "mem": mem})
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            pass
+
+    results.sort(key=lambda x: x["cpu"], reverse=True)
+    # Prefer processes actually using CPU; fall back to top-n if all idle
+    top = [r for r in results if r["cpu"] > 0][:n] or results[:n]
+    lines = [f"{r['name']} — CPU {r['cpu']:.1f}%, RAM {r['mem']:.1f}%" for r in top]
+    return "Top processes by CPU:\n" + "\n".join(lines)
 
 
 def get_disk_usage(path: str = "/") -> str:

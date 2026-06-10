@@ -23,6 +23,7 @@ from src.tools.messaging import send_imessage, send_sms
 from src.tools.screen_context import get_screen_context
 from src.core import proactive
 from src.core.wake_word import wait_for_wake_word
+from src.memory.context import build_memory_block
 
 load_dotenv()
 
@@ -202,8 +203,18 @@ conversation_history = load_memory()
 # --- Voice ---
 def speak(text):
     samples, sample_rate = kokoro.create(text, voice="af_sarah", speed=1.0, lang="en-us")
-    sd.play(samples, sample_rate)
-    sd.wait()
+    try:
+        sd.play(samples, sample_rate)
+        sd.wait()
+    except sd.PortAudioError:
+        # Audio device changed mid-session (Bluetooth, headphones, etc.) — reset and retry once
+        try:
+            sd.stop()
+            sd.default.reset()
+            sd.play(samples, sample_rate)
+            sd.wait()
+        except Exception as e:
+            print(f"[TTS] Audio error after reset: {e}")
 
 set_speak(speak)  # give timer access to speak
 proactive.init(speak, client, SYSTEM_PROMPT)
@@ -285,11 +296,13 @@ def think(user_input):
 
     trimmed = sanitize_history(conversation_history[-MAX_HISTORY:])
 
-    # Inject running summary into system prompt if it exists
+    # Inject running summary into system prompt if it exists.
+    # Fenced so a poisoned memory can't impersonate system instructions.
     summary = load_summary()
     system = SYSTEM_PROMPT
-    if summary:
-        system += f"\n\nContext from earlier conversations:\n{summary}"
+    memory_block = build_memory_block(summary)
+    if memory_block:
+        system += "\n\n" + memory_block
 
     tools_schema = [
             {
