@@ -65,7 +65,7 @@ python main.py
 main.py               — Brain, voice loop, tool dispatcher
 src/tools/            — All tool implementations
 src/voice/            — input.py, output.py (stubs, logic is in main.py)
-src/memory/           — context.py (stub)
+src/memory/           — context.py — memory fencing (sanitize + build_memory_block)
 src/brain/            — agent.py (stub)
 memory.json           — Persistent conversation history
 docs/                 — This vault
