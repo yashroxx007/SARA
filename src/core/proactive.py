@@ -58,7 +58,6 @@ Today's events were: {events}.
 Reference what he had today. Maybe push him to wind down or note anything pending. Direct, not preachy."""
 
         response = _client.messages.create(
-            model="claude-haiku-4-5",
             max_tokens=150,
             system=_system_prompt,
             messages=[{"role": "user", "content": prompt}]

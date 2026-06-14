@@ -1,7 +1,6 @@
 from faster_whisper import WhisperModel
 import sounddevice as sd
 import numpy as np
-import anthropic
 import collections
 import webrtcvad
 import json
@@ -25,6 +24,7 @@ from src.tools.projects import list_projects, get_project, update_project, creat
 from src.core import proactive
 from src.core.wake_word import wait_for_wake_word
 from src.memory.context import build_memory_block
+from src.core.llm import LLMClient, LLMError, probe_server
 
 load_dotenv()
 
@@ -202,7 +202,6 @@ Write a concise 3-5 sentence summary covering key topics discussed, decisions ma
 
     try:
         resp = client.messages.create(
-            model="claude-haiku-4-5",
             max_tokens=300,
             messages=[{"role": "user", "content": prompt}]
         )
@@ -219,7 +218,8 @@ Write a concise 3-5 sentence summary covering key topics discussed, decisions ma
 print("SARAH booting...")
 whisper_model = WhisperModel("tiny", device="cpu", compute_type="int8")
 kokoro = Kokoro("kokoro-v1.0.onnx", "voices-v1.0.bin")
-client = anthropic.Anthropic()
+client = LLMClient()
+probe_server(client)
 
 conversation_history = load_memory()
 
@@ -654,8 +654,7 @@ def dispatch_tool(name, tool_input):
 
 def _call_claude(messages, system_blocks):
     return client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=300,
+        max_tokens=512,
         system=system_blocks,
         messages=messages,
         tools=TOOLS_SCHEMA,
@@ -775,13 +774,9 @@ while True:
         except KeyboardInterrupt:
             save_memory(conversation_history)
             raise
-        except anthropic.RateLimitError:
-            response = "I'm rate limited, Boss. Give me a minute and try again."
-        except anthropic.APIConnectionError:
-            response = "Can't reach the API, Boss. Check the network."
-        except anthropic.APIStatusError as e:
-            print(f"[API ERROR] {e.status_code}: {e}")
-            response = "The API threw an error, Boss. Try that again."
+        except LLMError as e:
+            print(f"[LLM ERROR] {e}")
+            response = "I can't reach the local model, Boss. Is the MLX server running?"
         except Exception as e:
             print(f"[THINK ERROR] {type(e).__name__}: {e}")
             response = "Something broke on my end, Boss. Say that again and I'll take another run at it."

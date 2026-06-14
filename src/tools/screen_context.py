@@ -5,10 +5,16 @@ import tempfile
 
 
 def get_screen_context(question: str = "What is on the screen?") -> str:
-    """Take a screenshot and ask Claude vision what's on it."""
+    """Take a screenshot and ask Claude vision what's on it.
+
+    Hybrid: the local MLX brain (Qwen2.5-Coder) is text-only, so vision still
+    routes to Anthropic. Needs ANTHROPIC_API_KEY."""
     import anthropic
     from dotenv import load_dotenv
     load_dotenv()
+
+    if not os.getenv("ANTHROPIC_API_KEY"):
+        return "Vision needs the Anthropic key, Boss — it's not set."
 
     # Capture screenshot to a temp file
     tmp = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
