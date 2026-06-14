@@ -20,10 +20,14 @@ import os
 import json
 
 from openai import OpenAI
+from dotenv import load_dotenv
 
+load_dotenv()  # so LOCAL_API_BASE / LOCAL_MODEL work even when imported standalone
 
 DEFAULT_BASE  = "http://localhost:8080/v1"
-DEFAULT_MODEL = "mlx-community/Qwen2.5-Coder-14B-Instruct-4bit"
+# 7B-Instruct fits in 16 GB and is a better conversational fit than the Coder
+# model; the 14B-4bit OOMs on an M5/16 GB. Override via LOCAL_MODEL in .env.
+DEFAULT_MODEL = "mlx-community/Qwen2.5-7B-Instruct-4bit"
 
 
 class LLMError(Exception):

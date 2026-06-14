@@ -7,7 +7,8 @@ All notable changes to SARA, in reverse chronological order.
 ## [0.7.0] — 14 June 2026 — Local MLX Brain
 
 ### Changed
-- **Reasoning engine is now local.** Claude (Sonnet/Haiku) replaced by a local MLX server at `http://localhost:8080/v1` running `mlx-community/Qwen2.5-Coder-14B-Instruct-4bit`. No API cost, no network dependency.
+- **Reasoning engine is now local.** Claude (Sonnet/Haiku) replaced by a local MLX server at `http://localhost:8080/v1` running `mlx-community/Qwen2.5-7B-Instruct-4bit`. No API cost, no network dependency.
+- **Model choice:** started on `Qwen2.5-Coder-14B-4bit` but it **OOMs on M5 / 16 GB** (`[METAL] Insufficient Memory`) and ran ~14s/response. Switched to **7B-Instruct-4bit**: ~0.5s warm / ~3s cold, fits comfortably, and a better conversational fit than the Coder model. Override via `LOCAL_MODEL` in `.env`.
 - **`src/core/llm.py`** (new) — Anthropic-shaped compatibility layer. `LLMClient.messages.create()` accepts the same `system`/`messages`/`tools` and returns the same `.stop_reason` + `.content` blocks, but talks OpenAI underneath. Tool loop, `serialize_content`, `sanitize_history`, and `memory.json` format are untouched.
 - `main.py` / `proactive.py` instantiate `LLMClient` instead of `anthropic.Anthropic()`; model strings dropped (env-driven); `max_tokens` 300→512; `anthropic.*` exception handlers → `LLMError` with spoken fallback; boot-time `probe_server()`.
 
@@ -18,9 +19,13 @@ All notable changes to SARA, in reverse chronological order.
 - `.env`: `LOCAL_API_BASE`, `LOCAL_MODEL`. `requirements.txt`: added `openai`.
 - Server runs in its own Python 3.12 venv (`~/mlx-server`) — MLX has no 3.14 wheels.
 
-### Verified
-- Tool-calling round-trip (structured `tool_use` returned), plain-text path, adapter translation unit tests.
-- **Known cost:** ~14s/response on M5 16 GB for the 14B-4bit model. The 7B-Coder variant roughly halves this if latency hurts.
+### Verified (live)
+- Tool-calling round-trip — structured `tool_use` returned and dispatched. Plain-text path. Adapter translation unit tests.
+- 7B-Instruct latency: **~0.5s warm, ~3s cold** on M5 16 GB. Usable for voice.
+
+### Gotcha
+- The MLX server can't always reach HuggingFace to download a model on demand. If a model 500s on first load, pre-cache it once from the server venv:
+  `python -c "from huggingface_hub import snapshot_download; snapshot_download('<repo_id>')"`
 
 ---
 
