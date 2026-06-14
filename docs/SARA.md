@@ -32,7 +32,7 @@ python main.py
 
 | Tool | File | Status |
 |---|---|---|
-| Weather | `src/tools/weather.py` | ✅ Live |
+| Weather | `src/tools/weather.py` | ✅ Live (Open-Meteo forecast) |
 | Notes | `src/tools/notes.py` | ✅ Live |
 | Reminders | `src/tools/reminders.py` | ✅ Live (date bug fixed) |
 | DateTime | `src/tools/datetime_tool.py` | ✅ Live |
@@ -43,6 +43,9 @@ python main.py
 | System Stats | `src/tools/system_stats.py` | ✅ Live |
 | Spotify | `src/tools/spotify.py` | ✅ Live |
 | Timer | `src/tools/timer.py` | ✅ Live |
+| iMessage / SMS | `src/tools/messaging.py` | ✅ Live |
+| Screen Context | `src/tools/screen_context.py` | ✅ Live |
+| Projects | `src/tools/projects.py` | ✅ Live |
 
 ---
 
@@ -81,3 +84,4 @@ docs/                 — This vault
 - [[tools/Weather]] · [[tools/Notes]] · [[tools/Reminders]]
 - [[tools/MacControl]] · [[tools/WebSearch]] · [[tools/FileManager]]
 - [[tools/Calendar]] · [[tools/SystemStats]] · [[tools/Spotify]] · [[tools/Timer]]
+- [[tools/Messaging]] · [[tools/ScreenContext]] · [[tools/Projects]]

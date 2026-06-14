@@ -4,11 +4,25 @@ All notable changes to SARA, in reverse chronological order.
 
 ---
 
+## [0.6.2] — 14 June 2026 — Live Source Pointers + Arisn
+
+### Added
+- **Source pointers** — project files can declare `source: /path` lines. `get_project` follows them and pulls live content so SARA's project file stays thin while the real files remain the single source of truth.
+  - File source → full content (capped 8K chars)
+  - Directory source (Obsidian vault) → all `.md` files read **recursively**, newest first, capped with a truncation notice
+- **Arisn wired in** (`projects/arisn-app.md`) — sources `/Users/yash/Arisn/STATUS.md` + `/Users/yash/Arisn/vault`. SARA now reads live build status and dev logs for the app. Fuzzy match: "arisn", "the app project", "the app" all resolve.
+- **Instagram content wired in** — `projects/instagram-content.md` sources `/Users/yash/DataWithYash/DataWith_Yash.md`.
+
+### Changed
+- Replaced the `digital-product-app` stub with `arisn-app`.
+
+---
+
 ## [0.6.1] — 11 June 2026 — Project Knowledge
 
 ### Added
-- **Projects tool** (`src/tools/projects.py`) — SARA now knows what Yash is building across all his work, not just SARA itself.
-  - `projects/` folder in repo root: one markdown file per project (instagram-content, digital-product-app, sara)
+- **Projects tool** (`src/tools/projects.py`) — SARA now knows what Yash is building across all his work, not just SARA itself. **14th tool.**
+  - `projects/` folder in repo root: one markdown file per project (instagram-content, arisn-app, sara)
   - `list_projects`, `get_project` (fuzzy name match — "the app project" works), `update_project` (timestamped log entries by voice), `create_project`
   - System prompt instructs SARA to pull project context when Yash mentions working on something, and to log progress/decisions proactively
   - Cross-Claude bridge: other repos' CLAUDE.md files can instruct Claude Code to update `~/SARA/projects/<name>.md` at session end — knowledge flows from any Claude surface into SARA
@@ -36,6 +50,22 @@ All notable changes to SARA, in reverse chronological order.
 ### Architecture
 - `think()` is now ~50 lines (was ~200)
 - Failure philosophy: the voice loop is sacred — nothing propagates an exception past it
+
+---
+
+## [0.5.5] — 10 June 2026 — Conversation Mode, Persona & Tool Quality
+
+### Added
+- **Continuous conversation mode** — say "Hey SARA" once, then talk freely. No wake word between follow-ups. SARA sleeps on silence or a sleep phrase ("that's all", "go to sleep", "thanks SARA"). "shut down" / "goodbye SARA" exits.
+- **Weather forecast** (`src/tools/weather.py`) — replaced wttr.in (current only) with **Open-Meteo** (no API key). `forecast_days` param: 0 = current, 1 = tomorrow, 2–7 = multi-day with min/max temp, rain probability, and mm expected. Geocoding + WMO code → plain English.
+
+### Changed
+- **System prompt rewritten** — full FRIDAY-from-Iron-Man persona. Operator not assistant; sections for who SARA is, who Yash is, how to speak, when to push back. Direct, no hedging.
+- **History limits tightened** — `MAX_HISTORY` 20→15, `SUMMARY_THRESHOLD` 30→20, `KEEP_RECENT` 10→8. Previous mismatch meant summarisation never fired during normal use.
+
+### Fixed
+- **`system_stats` CPU readings** — `get_top_processes` now does two-pass `cpu_percent` sampling with a 0.5s window (psutil returns 0 on first call). Guards against `None` in format strings (the `TypeError` that crashed "what's eating my CPU?").
+- **PortAudio crash recovery** — `speak()` catches `PortAudioError`, resets the sounddevice defaults, and retries once. Audio device changes mid-session (Bluetooth, headphones) no longer kill SARA.
 
 ---
 

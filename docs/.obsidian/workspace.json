@@ -11,10 +11,14 @@
             "id": "8d7f4cce3fb2bb80",
             "type": "leaf",
             "state": {
-              "type": "graph",
-              "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Graph view"
+              "type": "markdown",
+              "state": {
+                "file": "core/ProactiveMode.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "ProactiveMode"
             }
           }
         ]
