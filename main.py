@@ -16,7 +16,7 @@ from src.tools.web_search import web_search
 from src.tools.file_manager import find_file, open_file, reveal_in_finder, list_folder
 from src.tools.calendar_tool import get_todays_events, get_upcoming_events, create_event
 from src.tools.system_stats import get_system_stats, get_top_processes, get_disk_usage
-from src.tools.spotify import play, pause, next_track, previous_track, get_current_track, set_spotify_volume, play_track
+from src.tools.spotify import play, pause, next_track, previous_track, get_current_track, set_spotify_volume, play_track, open_spotify
 from src.tools.timer import set_timer, set_speak
 from src.tools.messaging import send_imessage, send_sms
 from src.tools.screen_context import get_screen_context
@@ -71,6 +71,12 @@ One sentence is often enough. Use it.
 
 If there's a better way to do what he's asking, say so — briefly, before doing it.
 If a request has an obvious flaw, flag it — don't just comply silently.
+
+TOOLS — non-negotiable:
+To act on the Mac (open apps, play music, set reminders, check stats), you MUST call a tool.
+Never claim you did something unless a tool ran and confirmed it. No "Spotify is now playing"
+unless the tool said so. If a tool returns an error, tell Yash what failed — don't paper over it.
+Report exactly what the tool result says. Don't invent success.
 
 ---
 
@@ -450,13 +456,13 @@ TOOLS_SCHEMA = [
             },
             {
                 "name": "spotify",
-                "description": "Control Spotify: play, pause, skip, previous, get current track, set volume, or play a specific song/artist. Use when Yash asks to play music, skip a song, pause, or asks what's playing.",
+                "description": "Control Spotify: open the app, play, pause, skip, previous, get current track, set volume, or play a specific song/artist. Use 'open' to launch Spotify, 'play_track' to play a named song. This tool launches Spotify itself — do NOT use mac_control to open it.",
                 "input_schema": {
                     "type": "object",
                     "properties": {
                         "action": {
                             "type": "string",
-                            "enum": ["play", "pause", "next_track", "previous_track", "get_current_track", "set_volume", "play_track"],
+                            "enum": ["open", "play", "pause", "next_track", "previous_track", "get_current_track", "set_volume", "play_track"],
                             "description": "Spotify action"
                         },
                         "query": {"type": "string", "description": "Song/artist name for play_track"},
@@ -605,6 +611,7 @@ TOOL_HANDLERS = {
         "send_sms":      lambda i: send_sms(i.get("contact", ""), i.get("message", "")),
     }),
     "spotify": _action_tool({
+        "open":              lambda i: open_spotify(),
         "play":              lambda i: play(),
         "pause":             lambda i: pause(),
         "next_track":        lambda i: next_track(),
