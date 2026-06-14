@@ -98,10 +98,14 @@ def create_event(title: str, start: str, end: str, calendar: str = "Home") -> st
     as_start = start_dt.strftime("%d/%m/%Y %I:%M %p")
     as_end = end_dt.strftime("%d/%m/%Y %I:%M %p")
 
+    # Escape so titles/calendar names with " or \ don't break the AppleScript
+    safe_title = title.replace('\\', '\\\\').replace('"', '\\"')
+    safe_calendar = calendar.replace('\\', '\\\\').replace('"', '\\"')
+
     script = f'''
     tell application "Calendar"
-        tell calendar "{calendar}"
-            make new event with properties {{summary:"{title}", start date:date "{as_start}", end date:date "{as_end}"}}
+        tell calendar "{safe_calendar}"
+            make new event with properties {{summary:"{safe_title}", start date:date "{as_start}", end date:date "{as_end}"}}
         end tell
     end tell
     '''

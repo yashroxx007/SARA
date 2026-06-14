@@ -15,7 +15,7 @@ def set_timer(minutes: float, label: str = "Timer") -> str:
     def _fire():
         import time
         time.sleep(seconds)
-        msg = f"{label} done. {int(minutes)} {'minute' if minutes == 1 else 'minutes'} are up."
+        msg = f"{label} done, Boss."
         print(f"\n[TIMER] {msg}")
         if _speak_fn:
             _speak_fn(msg)

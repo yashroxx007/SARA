@@ -4,7 +4,7 @@ import subprocess
 def send_imessage(contact: str, message: str) -> str:
     """Send an iMessage. contact can be a name or phone number."""
     safe_msg = message.replace('\\', '\\\\').replace('"', '\\"')
-    safe_contact = contact.replace('"', '\\"')
+    safe_contact = contact.replace('\\', '\\\\').replace('"', '\\"')
 
     script = f'''
     tell application "Messages"
@@ -30,11 +30,12 @@ def send_imessage(contact: str, message: str) -> str:
 def send_sms(phone: str, message: str) -> str:
     """Send an SMS via Messages app."""
     safe_msg = message.replace('\\', '\\\\').replace('"', '\\"')
+    safe_phone = phone.replace('\\', '\\\\').replace('"', '\\"')
 
     script = f'''
     tell application "Messages"
         set smsService to 1st service whose service type = SMS
-        send "{safe_msg}" to buddy "{phone}" of smsService
+        send "{safe_msg}" to buddy "{safe_phone}" of smsService
     end tell
     '''
     result = subprocess.run(["osascript", "-e", script], capture_output=True, text=True)
