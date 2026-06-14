@@ -1,3 +1,8 @@
+# Silence the pkg_resources deprecation warning webrtcvad triggers on import.
+# Must run before webrtcvad is imported below.
+import warnings
+warnings.filterwarnings("ignore", message="pkg_resources is deprecated")
+
 from faster_whisper import WhisperModel
 import sounddevice as sd
 import numpy as np
