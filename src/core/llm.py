@@ -28,6 +28,11 @@ DEFAULT_BASE  = "http://localhost:8080/v1"
 # 7B-Instruct fits in 16 GB and is a better conversational fit than the Coder
 # model; the 14B-4bit OOMs on an M5/16 GB. Override via LOCAL_MODEL in .env.
 DEFAULT_MODEL = "mlx-community/Qwen2.5-7B-Instruct-4bit"
+# Low temp = deterministic, reliable tool-calling. Small models flip a coin on
+# whether to emit a tool call at high temp; greedy decoding takes the
+# highest-probability path (the tool, for clear action requests). Override
+# with LLM_TEMPERATURE in .env if you want more conversational variety.
+DEFAULT_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.0"))
 
 
 class LLMError(Exception):
@@ -179,7 +184,8 @@ class _Messages:
         self._client = client
         self._default_model = default_model
 
-    def create(self, model=None, max_tokens=512, system=None, messages=None, tools=None):
+    def create(self, model=None, max_tokens=512, system=None, messages=None,
+               tools=None, temperature=None):
         oai_messages = _to_openai_messages(system, messages)
         oai_tools = _to_openai_tools(tools)
 
@@ -187,6 +193,7 @@ class _Messages:
             "model": model or self._default_model,
             "max_tokens": max_tokens,
             "messages": oai_messages,
+            "temperature": DEFAULT_TEMPERATURE if temperature is None else temperature,
         }
         # Only send tool keys when we actually have tools — some MLX servers
         # reject an explicit null.
