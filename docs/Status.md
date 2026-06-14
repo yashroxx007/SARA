@@ -1,6 +1,6 @@
 # Current Status
 
-> Last updated: 14 June 2026 (v0.6.2)
+> Last updated: 14 June 2026 (v0.7.0)
 
 ---
 
@@ -11,7 +11,8 @@
 | STT (faster-whisper) | ✅ Working | `tiny` + `int8` + `beam_size=1` — ~4x faster |
 | TTS (Kokoro) | ✅ Working | `af_sarah` voice |
 | VAD | ✅ Working | ~800ms silence cutoff |
-| Claude API | ✅ Working | `claude-sonnet-4-6`, tool use active, prompt caching (v0.6.0) |
+| Brain (local MLX) | ✅ Working | Qwen2.5-Coder-14B-4bit via mlx-omni-server :8080 — tool-calling verified (v0.7.0); ~14s/response on M5 |
+| Vision (hybrid) | ✅ Working | `screen_context` still on Claude — needs `ANTHROPIC_API_KEY` |
 | Memory | ✅ Working | Rolling 15-exchange JSON, fenced injection (v0.5.4) |
 | Tool dispatcher | ✅ Working | 14 tools, registry-based, error-isolated (v0.6.0) |
 | Crash resilience | ✅ Working | Tool/API/mic failures all spoken, never fatal (v0.6.0) |
@@ -59,8 +60,9 @@
 ## Environment
 
 ```
-Python:    3.14 (.venv-1)
-Model:     claude-sonnet-4-6 (Haiku for summarisation)
+Python:    3.14 (.venv-1)  ·  server venv: 3.12 (~/mlx-server)
+Model:     Qwen2.5-Coder-14B-4bit (local MLX) · Claude for vision only
+Server:    mlx-omni-server --port 8080
 Whisper:   tiny (int8) via faster-whisper
 Kokoro:    v1.0 ONNX
 Platform:  macOS (Apple Silicon — M5)

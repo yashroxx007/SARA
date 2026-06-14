@@ -4,6 +4,26 @@ All notable changes to SARA, in reverse chronological order.
 
 ---
 
+## [0.7.0] — 14 June 2026 — Local MLX Brain
+
+### Changed
+- **Reasoning engine is now local.** Claude (Sonnet/Haiku) replaced by a local MLX server at `http://localhost:8080/v1` running `mlx-community/Qwen2.5-Coder-14B-Instruct-4bit`. No API cost, no network dependency.
+- **`src/core/llm.py`** (new) — Anthropic-shaped compatibility layer. `LLMClient.messages.create()` accepts the same `system`/`messages`/`tools` and returns the same `.stop_reason` + `.content` blocks, but talks OpenAI underneath. Tool loop, `serialize_content`, `sanitize_history`, and `memory.json` format are untouched.
+- `main.py` / `proactive.py` instantiate `LLMClient` instead of `anthropic.Anthropic()`; model strings dropped (env-driven); `max_tokens` 300→512; `anthropic.*` exception handlers → `LLMError` with spoken fallback; boot-time `probe_server()`.
+
+### Kept on Anthropic (hybrid)
+- **`screen_context`** (vision) — Qwen2.5-Coder is text-only, so screenshots still route to Claude. Needs `ANTHROPIC_API_KEY`; graceful guard if absent.
+
+### Config
+- `.env`: `LOCAL_API_BASE`, `LOCAL_MODEL`. `requirements.txt`: added `openai`.
+- Server runs in its own Python 3.12 venv (`~/mlx-server`) — MLX has no 3.14 wheels.
+
+### Verified
+- Tool-calling round-trip (structured `tool_use` returned), plain-text path, adapter translation unit tests.
+- **Known cost:** ~14s/response on M5 16 GB for the 14B-4bit model. The 7B-Coder variant roughly halves this if latency hurts.
+
+---
+
 ## [0.6.2] — 14 June 2026 — Live Source Pointers + Arisn
 
 ### Added
