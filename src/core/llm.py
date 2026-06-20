@@ -17,6 +17,7 @@ Config (env):
 """
 
 import os
+import re
 import json
 
 from openai import OpenAI
@@ -157,24 +158,82 @@ def _to_openai_tools(tools):
     } for t in tools]
 
 
-def _from_openai_response(resp):
+# Small models sometimes emit a tool call as plain text instead of using the
+# function-calling protocol, e.g.  [web_search {"query": "..."}]  or
+# <tool_call>{"name": "...", "arguments": {...}}</tool_call>. The server then
+# passes it through as content and it gets spoken aloud as gibberish. These
+# patterns recover such leaks back into real tool calls.
+_RE_TOOLCALL = re.compile(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", re.DOTALL)
+_RE_NAMEJSON = re.compile(r'\{\s*"name"\s*:\s*"(\w+)"\s*,\s*"arguments"\s*:\s*(\{.*?\})\s*\}', re.DOTALL)
+_RE_BRACKET  = re.compile(r"\[(\w+)\s*(\{.*?\})\]", re.DOTALL)
+
+
+def _recover_leaked_tool_calls(text, known_names):
+    """Return [(name, args_dict), ...] for tool calls the model wrote as text.
+    Only matches names that are actually registered tools, to avoid false hits."""
+    if not text or not known_names:
+        return []
+
+    # <tool_call>{...}</tool_call> and bare {"name":..,"arguments":..}
+    for rx in (_RE_TOOLCALL, _RE_NAMEJSON):
+        found = []
+        for m in rx.finditer(text):
+            try:
+                if rx is _RE_TOOLCALL:
+                    obj = json.loads(m.group(1))
+                    name, args = obj.get("name"), obj.get("arguments", {})
+                else:
+                    name, args = m.group(1), json.loads(m.group(2))
+            except (json.JSONDecodeError, TypeError, AttributeError):
+                continue
+            if name in known_names:
+                found.append((name, args if isinstance(args, dict) else {}))
+        if found:
+            return found
+
+    # [name {json}]
+    found = []
+    for m in _RE_BRACKET.finditer(text):
+        name = m.group(1)
+        if name not in known_names:
+            continue
+        try:
+            args = json.loads(m.group(2))
+        except json.JSONDecodeError:
+            continue
+        found.append((name, args if isinstance(args, dict) else {}))
+    return found
+
+
+def _from_openai_response(resp, known_names=None):
     choice = resp.choices[0]
     msg = choice.message
 
-    blocks = []
-    if getattr(msg, "content", None):
-        blocks.append(_TextBlock(msg.content))
-
     tool_calls = getattr(msg, "tool_calls", None) or []
-    for tc in tool_calls:
-        try:
-            args = json.loads(tc.function.arguments or "{}")
-        except (json.JSONDecodeError, TypeError):
-            args = {}
-        blocks.append(_ToolUseBlock(tc.id, tc.function.name, args))
+    content = getattr(msg, "content", None)
 
-    stop_reason = "tool_use" if tool_calls else "end_turn"
-    return _Response(stop_reason, blocks)
+    # Native, well-formed tool calls — the normal path.
+    if tool_calls:
+        blocks = []
+        if content:
+            blocks.append(_TextBlock(content))
+        for tc in tool_calls:
+            try:
+                args = json.loads(tc.function.arguments or "{}")
+            except (json.JSONDecodeError, TypeError):
+                args = {}
+            blocks.append(_ToolUseBlock(tc.id, tc.function.name, args))
+        return _Response("tool_use", blocks)
+
+    # No native tool calls — check whether the model leaked one as text.
+    leaked = _recover_leaked_tool_calls(content, known_names or set())
+    if leaked:
+        print(f"[LLM] Recovered {len(leaked)} tool call(s) the model leaked as text.")
+        blocks = [_ToolUseBlock(f"recovered_{i}", name, args)
+                  for i, (name, args) in enumerate(leaked)]
+        return _Response("tool_use", blocks)
+
+    return _Response("end_turn", [_TextBlock(content)] if content else [])
 
 
 # --- The client -----------------------------------------------------------
@@ -206,7 +265,8 @@ class _Messages:
         except Exception as e:
             raise LLMError(str(e)) from e
 
-        return _from_openai_response(resp)
+        known_names = {t["name"] for t in tools} if tools else set()
+        return _from_openai_response(resp, known_names)
 
 
 class LLMClient:
