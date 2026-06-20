@@ -11,7 +11,7 @@
 | STT (faster-whisper) | ✅ Working | `tiny` + `int8` + `beam_size=1` — ~4x faster |
 | TTS (Kokoro) | ✅ Working | `af_sarah` voice |
 | VAD | ✅ Working | ~800ms silence cutoff |
-| Brain (local MLX) | ✅ Working | Qwen2.5-7B-Instruct-4bit via mlx-omni-server :8080 — tool-calling verified (v0.7.0); ~0.5s warm / 3s cold on M5 |
+| Brain (local MLX) | ✅ Working | Meta-Llama-3.1-8B-Instruct-4bit via mlx-omni-server :8080 — 20/20 tool-call reliability (v0.7.1); ~2s warm on M5 |
 | Vision (hybrid) | ✅ Working | `screen_context` still on Claude — needs `ANTHROPIC_API_KEY` |
 | Memory | ✅ Working | Rolling 15-exchange JSON, fenced injection (v0.5.4) |
 | Tool dispatcher | ✅ Working | 14 tools, registry-based, error-isolated (v0.6.0) |
@@ -61,7 +61,7 @@
 
 ```
 Python:    3.14 (.venv-1)  ·  server venv: 3.12 (~/mlx-server)
-Model:     Qwen2.5-7B-Instruct-4bit (local MLX) · Claude for vision only
+Model:     Meta-Llama-3.1-8B-Instruct-4bit (local MLX) · Claude for vision only
 Server:    mlx-omni-server --port 8080
 Whisper:   tiny (int8) via faster-whisper
 Kokoro:    v1.0 ONNX

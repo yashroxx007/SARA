@@ -4,6 +4,24 @@ All notable changes to SARA, in reverse chronological order.
 
 ---
 
+## [0.7.1] — 14 June 2026 — Model Swap: Llama-3.1-8B
+
+### Changed
+- **Brain model → `mlx-community/Meta-Llama-3.1-8B-Instruct-4bit`** (was Qwen2.5-7B).
+  Qwen's tool-calling was intermittent — it sometimes hallucinated success or leaked
+  the call as text. Bench across 5 tools × 4 runs:
+  - **Llama-3.1-8B: 20/20** correct tool calls — its format is what mlx-omni-server parses.
+  - Qwen2.5-7B: intermittent.
+  - Hermes-3-8B: **0/6** — its `<tool_call>` format isn't what the server injects, so it
+    ignored tools and confabulated. (Good model, wrong server pairing.)
+- Fits 16 GB at 4bit, ~2s warm on M5. Override via `LOCAL_MODEL` in `.env`.
+
+### Note
+- 8B models still occasionally confabulate facts on *non-tool* statements; the
+  reliability win is specifically tool-calling. Persona stays terse and on-brand.
+
+---
+
 ## [0.7.0] — 14 June 2026 — Local MLX Brain
 
 ### Changed

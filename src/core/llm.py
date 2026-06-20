@@ -26,9 +26,11 @@ from dotenv import load_dotenv
 load_dotenv()  # so LOCAL_API_BASE / LOCAL_MODEL work even when imported standalone
 
 DEFAULT_BASE  = "http://localhost:8080/v1"
-# 7B-Instruct fits in 16 GB and is a better conversational fit than the Coder
-# model; the 14B-4bit OOMs on an M5/16 GB. Override via LOCAL_MODEL in .env.
-DEFAULT_MODEL = "mlx-community/Qwen2.5-7B-Instruct-4bit"
+# Llama-3.1-8B-Instruct: its tool-call format is exactly what mlx-omni-server
+# parses, giving the most reliable function-calling of the models tested
+# (20/20 vs Qwen2.5-7B intermittent vs Hermes-3 0/6 — Hermes' format the
+# server didn't parse). Fits 16 GB at 4bit; 14B-4bit OOMs. Override via env.
+DEFAULT_MODEL = "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit"
 # Low temp = deterministic, reliable tool-calling. Small models flip a coin on
 # whether to emit a tool call at high temp; greedy decoding takes the
 # highest-probability path (the tool, for clear action requests). Override
